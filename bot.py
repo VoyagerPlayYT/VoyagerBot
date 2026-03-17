@@ -2,29 +2,25 @@ import os
 import asyncio
 import zipfile
 import shutil
-import struct
 import logging
 import json
 import subprocess
 import threading
 from pathlib import Path
-from urllib.request import urlopen, Request
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from telethon import TelegramClient, events
-from telethon.sessions import StringSession
 
 logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 BOT_TOKEN  = os.environ.get("BOT_TOKEN", "YOUR_BOT_TOKEN")
-API_ID     = int(os.environ.get("API_ID", "0"))
-API_HASH   = os.environ.get("API_HASH", "")
+API_ID     = int(os.environ.get("API_ID", "1"))
+API_HASH   = os.environ.get("API_HASH", "a")
 CHANNEL_ID = os.environ.get("CHANNEL_ID", "@VoyagersIPA")
 ADMIN_ID   = int(os.environ.get("ADMIN_ID", "0"))
 PORT       = int(os.environ.get("PORT", "10000"))
 
-# ── HTTP server for Render ────────────────────────────────
 class PingHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
@@ -35,7 +31,6 @@ class PingHandler(BaseHTTPRequestHandler):
 def start_http():
     HTTPServer(("0.0.0.0", PORT), PingHandler).serve_forever()
 
-# ── Patcher ───────────────────────────────────────────────
 def patch_binary(path: Path):
     data  = bytearray(path.read_bytes())
     count = 0
@@ -103,39 +98,35 @@ def patch_ipa(ipa: Path, work: Path):
                 z.write(f, f.relative_to(ex))
     return out, info, total
 
-# ── Main bot ──────────────────────────────────────────────
 async def main():
-    # HTTP server
-    t = threading.Thread(target=start_http, daemon=True)
-    t.start()
+    threading.Thread(target=start_http, daemon=True).start()
     logger.info(f"HTTP on port {PORT}")
 
-    bot = TelegramClient("voyager_bot", API_ID, API_HASH).start(bot_token=BOT_TOKEN)
+    bot = TelegramClient("voyager_bot", API_ID, API_HASH)
+    await bot.start(bot_token=BOT_TOKEN)
+    logger.info("VoyagersBot started!")
 
     @bot.on(events.NewMessage(pattern="/start"))
-    async def start(event):
+    async def start_cmd(event):
         await event.respond(
             "👋 **VoyagersIPA Bot**\n\n"
             "Отправь `.ipa` файл — пропатчу и выложу в @VoyagersIPA\n\n"
             "✅ Premium Unlocked\n✅ Pro Unlocked\n✅ No Ads"
         )
 
-    @bot.on(events.NewMessage(func=lambda e: e.document and
-            e.document.mime_type in ("application/octet-stream",
-                                     "application/x-ios-app",
-                                     "application/zip") or
-            (e.document and e.file.name and e.file.name.endswith(".ipa"))))
+    @bot.on(events.NewMessage(func=lambda e: e.document is not None))
     async def handle_ipa(event):
         if ADMIN_ID and event.sender_id != ADMIN_ID:
             await event.respond("❌ Нет доступа.")
             return
 
-        if event.document.size > 500 * 1024 * 1024:
-            await event.respond("❌ Файл слишком большой (макс 500MB)")
+        fname = event.file.name or ""
+        if not fname.endswith(".ipa"):
+            await event.respond("❌ Нужен `.ipa` файл!")
             return
 
-        fname = event.file.name or "app.ipa"
-        if not fname.endswith(".ipa"):
+        if event.document.size > 500 * 1024 * 1024:
+            await event.respond("❌ Файл слишком большой (макс 500MB)")
             return
 
         status = await event.respond("⏳ Скачиваю IPA...")
@@ -175,7 +166,6 @@ async def main():
         finally:
             shutil.rmtree(work, ignore_errors=True)
 
-    logger.info("VoyagersBot started!")
     await bot.run_until_disconnected()
 
 if __name__ == "__main__":
