@@ -96,6 +96,7 @@ TR: Dict[str, Dict[str, str]] = {
         "btn_history":      "\U0001f4cb История",
         "btn_settings":     "\u2699\ufe0f Настройки",
         "btn_channel":      "\U0001f4e3 Канал",
+        "btn_extract":      "\U0001f9e9 Извлечь dylib",
         
         "preset_header":    "\U0001f4da **Выбери dylib:**\n\n\U0001f4be **Пресеты:**",
         "preset_empty":     "\U0001f4be (Пресетов нет)",
@@ -105,6 +106,13 @@ TR: Dict[str, Dict[str, str]] = {
         "preset_loaded":    "\u2705 Пресет **{name}** загружен ({count} dylib)",
         "preset_deleted":   "\u274c Пресет **{name}** удалён",
         "preset_already":   "\u26a0\ufe0f Пресет с таким именем уже существует",
+
+        "extract_prompt":   "\U0001f9e9 **Извлечь dylib из IPA**\n\nОтправь .ipa файл и я покажу все dylib внутри:",
+        "extract_found":    "\U0001f9e9 **Найдено dylib: {count}**\n\nВыбери какие отправить:",
+        "extract_none":     "\U0001f4ad В этом IPA нет dylib в Frameworks",
+        "extract_sending":  "\U0001f4e4 Отправляю {count} dylib...",
+        "extract_done":     "\u2705 Готово! Отправлено {count} dylib",
+        "extract_sel":      "\u2705 Выбрано: {count}",
         
         "help":             "\U0001f527 **Инструкция:**\n\n1\ufe0f\u20e3 **\U0001f4da Dylib** \u2192 выбери dylib\n2\ufe0f\u20e3 **\U0001f4e6 Загрузить IPA** \u2192 отправь .ipa\n   или **\U0001f50d App Store** \u2192 найди приложение\n3\ufe0f\u20e3 Получи патченый IPA!\n\n\U0001f310 **Язык** \u2014 меняет ВЕСЬ интерфейс\n\u2699\ufe0f **Настройки** \u2014 AppleID, канал, admin",
         "no_dlib":          "\u26a0\ufe0f **Dylib не выбран!**\n\nНажми **\U0001f4da Dylib**",
@@ -158,6 +166,7 @@ TR: Dict[str, Dict[str, str]] = {
         "btn_history":      "\U0001f4cb History",
         "btn_settings":     "\u2699\ufe0f Settings",
         "btn_channel":      "\U0001f4e3 Channel",
+        "btn_extract":      "\U0001f9e9 Extract dylib",
         
         "preset_header":    "\U0001f4da **Pick dylib:**\n\n\U0001f4be **Presets:**",
         "preset_empty":     "\U0001f4be (No presets)",
@@ -167,6 +176,13 @@ TR: Dict[str, Dict[str, str]] = {
         "preset_loaded":    "\u2705 Preset **{name}** loaded ({count} dylib)",
         "preset_deleted":   "\u274c Preset **{name}** deleted",
         "preset_already":   "\u26a0\ufe0f Preset with this name already exists",
+
+        "extract_prompt":   "\U0001f9e9 **Extract dylib from IPA**\n\nSend .ipa file and I'll show all dylibs inside:",
+        "extract_found":    "\U0001f9e9 **Found dylibs: {count}**\n\nPick which ones to send:",
+        "extract_none":     "\U0001f4ad No dylibs found in Frameworks",
+        "extract_sending":  "\U0001f4e4 Sending {count} dylibs...",
+        "extract_done":     "\u2705 Done! Sent {count} dylibs",
+        "extract_sel":      "\u2705 Selected: {count}",
         
         "help":             "\U0001f527 **How to use:**\n\n1\ufe0f\u20e3 **\U0001f4da Dylib** \u2192 pick a dylib\n2\ufe0f\u20e3 **\U0001f4e6 Upload IPA** \u2192 send .ipa\n   or **\U0001f50d App Store** \u2192 find app\n3\ufe0f\u20e3 Get patched IPA!\n\n\U0001f310 **Lang** \u2014 switches ALL interface\n\u2699\ufe0f **Settings** \u2014 AppleID, channel, admin",
         "no_dlib":          "\u26a0\ufe0f **No dylib selected!**\n\nTap **\U0001f4da Dylib**",
@@ -309,14 +325,14 @@ def reply_kb(lang: str = "ru") -> List:
         [Button.text(t("btn_upload",   lang)), Button.text(t("btn_appstore", lang))],
         [Button.text(t("btn_dylibs",   lang)), Button.text(t("btn_lang",     lang))],
         [Button.text(t("btn_history",  lang)), Button.text(t("btn_settings", lang))],
-        [Button.text(t("btn_channel",  lang))],
+        [Button.text(t("btn_extract",  lang)), Button.text(t("btn_channel",  lang))],
     ]
 
 
 def _match_btn(text: str) -> Optional[str]:
     for lng in ("ru", "en"):
         for k in ("btn_upload","btn_appstore","btn_dylibs","btn_lang",
-                  "btn_history","btn_settings","btn_channel"):
+                  "btn_history","btn_settings","btn_channel","btn_extract"):
             if t(k, lng) == text:
                 return k
     return None
@@ -577,8 +593,61 @@ async def do_appstore_search(event, uid: int, lang: str, query: str) -> None:
 
 
 # ============================================================
-# ИНЖЕКТ
+# ИЗВЛЕЧЕНИЕ DYLIB ИЗ IPA
 # ============================================================
+
+def extract_kb(dylibs: List[str], selected: List[str]) -> List:
+    """Клавиатура выбора dylib для извлечения из IPA."""
+    rows = []
+    for name in dylibs:
+        tick = "✅" if name in selected else "🧩"
+        rows.append([Button.inline(f"{tick} {name[:30]}", f"ex_{name}".encode())])
+    n = len(selected)
+    rows.append([
+        Button.inline(f"📤 Отправить ({n})" if n > 0 else "📤 Отправить", b"ex_send"),
+        Button.inline("✅ Все", b"ex_all"),
+        Button.inline("❌ Отмена", b"ex_cancel"),
+    ])
+    return rows
+
+
+async def extract_dylibs_from_ipa(ipa_path: str) -> List[str]:
+    """Извлекает список dylib из Frameworks папки IPA."""
+    found = []
+    try:
+        with zipfile.ZipFile(ipa_path, "r") as zf:
+            for name in zf.namelist():
+                if "/Frameworks/" in name and name.endswith(".dylib"):
+                    found.append(Path(name).name)
+    except Exception:
+        pass
+    return sorted(set(found))
+
+
+async def send_extracted_dylibs(event, ipa_path: str, dylib_names: List[str]) -> None:
+    """Извлекает и отправляет выбранные dylib из IPA."""
+    uid  = event.sender_id
+    lang = get_lang(uid)
+    status = await event.reply(t("extract_sending", lang, count=len(dylib_names)))
+    sent = 0
+    try:
+        with zipfile.ZipFile(ipa_path, "r") as zf:
+            for entry in zf.namelist():
+                if "/Frameworks/" in entry and Path(entry).name in dylib_names:
+                    data = zf.read(entry)
+                    fname = Path(entry).name
+                    tmp = f"tmp_extract_{uid}_{fname}"
+                    with open(tmp, "wb") as f:
+                        f.write(data)
+                    await client.send_file(event.chat_id, tmp,
+                                           caption=f"🧩 `{fname}`",
+                                           force_document=True)
+                    os.remove(tmp)
+                    sent += 1
+    except Exception as e:
+        await status.edit(f"❌ Ошибка: {e}")
+        return
+    await status.edit(t("extract_done", lang, count=sent))
 
 async def inject_dylib(ipa_path: str, dylib_names: List[str], progress_cb=None) -> Tuple[bool, str]:
     tmp_dir: Optional[Path] = None
@@ -1061,6 +1130,10 @@ async def handle_reply_kb(event):
         ch = bot_settings.get("channel", CHANNEL)
         await event.reply(t("channel_text", lang, channel=ch))
 
+    elif key == "btn_extract":
+        user_state[uid] = {"awaiting": "extract_ipa"}
+        await event.reply(t("extract_prompt", lang))
+
 
 # ============================================================
 # ТЕКСТОВЫЙ ВВОД
@@ -1258,7 +1331,40 @@ async def handle_ipa(event):
 
     uid  = event.sender_id
     lang = get_lang(uid)
-    sel  = user_dylib.get(uid, [])
+    aw   = user_state.get(uid, {}).get("awaiting", "")
+
+    # ── Режим извлечения dylib ──
+    if aw == "extract_ipa":
+        user_state.pop(uid, None)
+        status = await event.reply(t("dl_progress", lang, name=fname, pct=0, recv="0Б", total="?"))
+        temp_ipa = f"tmp_extract_{uid}_{int(time.time())}.ipa"
+        try:
+            await event.download_media(temp_ipa)
+        except Exception as e:
+            await status.edit(t("patch_err", lang, error=f"Скачивание: {e}"))
+            return
+        await status.delete()
+        found = await extract_dylibs_from_ipa(temp_ipa)
+        if not found:
+            await event.reply(t("extract_none", lang))
+            os.remove(temp_ipa)
+            return
+        # Сохраняем путь к IPA и найденные dylib в state
+        user_state[uid] = {
+            "extract_ipa_path": temp_ipa,
+            "extract_dylibs":   found,
+            "extract_selected": [],
+        }
+        await event.reply(
+            t("extract_found", lang, count=len(found)),
+            buttons=extract_kb(found, [])
+        )
+        return
+
+    # ── Режим инжекта ──
+    raw  = user_dylib.get(uid, [])
+    seen = set(); sel = [x for x in raw if not (x in seen or seen.add(x))]
+    user_dylib[uid] = sel
 
     if not sel:
         await event.reply(t("no_dlib", lang), buttons=dylib_kb_with_presets(0, get_dylibs(), [], lang))
@@ -1366,9 +1472,76 @@ async def handle_ipa_url(event):
             pass
 
 
-# ============================================================
-# АВТОСОХРАНЕНИЕ ПРЕСЕТОВ
-# ============================================================
+# ── Извлечение dylib — выбор ──────────────────────────────────────────────────
+
+@client.on(events.CallbackQuery(func=lambda e: e.data.startswith(b"ex_") and e.data not in (b"ex_send", b"ex_all", b"ex_cancel")))
+async def cb_extract_toggle(event):
+    uid  = event.sender_id
+    lang = get_lang(uid)
+    name = event.data[3:].decode()
+    st   = user_state.get(uid, {})
+    found    = st.get("extract_dylibs", [])
+    selected = st.get("extract_selected", [])
+    if name in selected:
+        selected.remove(name)
+    else:
+        selected.append(name)
+    user_state[uid]["extract_selected"] = selected
+    await event.answer(f"✅ {name}" if name in selected else f"➖ {name}")
+    await event.edit(
+        t("extract_found", lang, count=len(found)) +
+        f"\n\n✅ {t('extract_sel', lang, count=len(selected))}",
+        buttons=extract_kb(found, selected)
+    )
+
+
+@client.on(events.CallbackQuery(data=b"ex_all"))
+async def cb_extract_all(event):
+    uid  = event.sender_id
+    lang = get_lang(uid)
+    st   = user_state.get(uid, {})
+    found = st.get("extract_dylibs", [])
+    user_state[uid]["extract_selected"] = list(found)
+    await event.answer("✅ Все выбраны")
+    await event.edit(
+        t("extract_found", lang, count=len(found)) +
+        f"\n\n✅ {t('extract_sel', lang, count=len(found))}",
+        buttons=extract_kb(found, list(found))
+    )
+
+
+@client.on(events.CallbackQuery(data=b"ex_cancel"))
+async def cb_extract_cancel(event):
+    uid = event.sender_id
+    st  = user_state.pop(uid, {})
+    ipa = st.get("extract_ipa_path", "")
+    if ipa and os.path.exists(ipa):
+        os.remove(ipa)
+    await event.answer("❌ Отменено")
+    await event.delete()
+
+
+@client.on(events.CallbackQuery(data=b"ex_send"))
+async def cb_extract_send(event):
+    uid  = event.sender_id
+    lang = get_lang(uid)
+    st   = user_state.get(uid, {})
+    ipa_path = st.get("extract_ipa_path", "")
+    selected = st.get("extract_selected", [])
+    if not selected:
+        await event.answer("⚠️ Ничего не выбрано!")
+        return
+    if not ipa_path or not os.path.exists(ipa_path):
+        await event.answer("❌ IPA не найден")
+        return
+    await event.answer("📤 Отправляю...")
+    user_state.pop(uid, None)
+    await send_extracted_dylibs(event, ipa_path, selected)
+    if os.path.exists(ipa_path):
+        try:
+            os.remove(ipa_path)
+        except OSError:
+            pass
 async def auto_save_presets():
     """Периодически сохраняет пресеты в файлы."""
     while True:
