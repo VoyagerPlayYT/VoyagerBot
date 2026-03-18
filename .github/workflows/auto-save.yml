@@ -21,10 +21,11 @@ jobs:
       - name: 💾 Run auto-save
         run: python .github/workflows/auto_save.py
       
-      - name: 🔗 Commit
+      - name: 🔗 Commit and Push
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "Auto-Save"
           git add -A
+          git pull --rebase origin main || true
           git commit -m "🔄 Auto-save: $(date '+%Y-%m-%d %H:%M:%S')" || echo "✅ No changes"
-          git push
+          git push origin main
