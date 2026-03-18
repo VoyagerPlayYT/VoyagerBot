@@ -263,13 +263,14 @@ def load_presets() -> None:
     except Exception:
         presets = {}
 
-
 def save_presets() -> None:
     try:
-        json.dump(presets, open(PRESETS_FILE, "w", encoding="utf-8"),
+        data = json.dump(presets, open(PRESETS_FILE, "w", encoding="utf-8"),
                   ensure_ascii=False, indent=2)
-    except OSError:
-        pass
+        logger.info(f"💾 Presets saved to {PRESETS_FILE}: {presets}")  # ← ДОБАВЬ
+    except OSError as e:
+        logger.error(f"❌ Error saving presets: {e}")
+
 
 
 def create_preset(name: str, dylib_list: List[str]) -> bool:
