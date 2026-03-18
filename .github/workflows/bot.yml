@@ -1,31 +1,44 @@
-name: Voyager Bot
+name: 🤖 Voyager Bot
 
 on:
-  workflow_dispatch:
+  push:
+    branches:
+      - main
   schedule:
-    - cron: '0 */6 * * *'
+    - cron: '0 */6 * * *'  # Запускается каждые 6 часов
+  workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   bot:
     runs-on: ubuntu-latest
+    
     steps:
-      - uses: actions/checkout@v3
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
       
-      - name: Setup Python
+      - name: 🐍 Setup Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
       
-      - name: Install dependencies
+      - name: 📦 Install dependencies
         run: pip install -r requirements.txt
       
-      - name: Create env
-        run: |
-          echo "API_ID=36752111" > VoyagerBot.env
-          echo "API_HASH=e0e2551f38b8ce83022699ae1e04a5ea" >> VoyagerBot.env
-          echo "BOT_TOKEN=8697661935:AAEHPeWu6xfJUQdTpQaDG0NCFD6kDflVJwM" >> VoyagerBot.env
-          echo "CHANNEL_ID=@VoyagersIPA" >> VoyagerBot.env
-          echo "ADMIN_ID=115408334" >> VoyagerBot.env
+      - name: 🤖 Run Bot
+        env:
+          API_ID: ${{ secrets.API_ID }}
+          API_HASH: ${{ secrets.API_HASH }}
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+        run: timeout 21600 python main.py || true
       
-      - name: Run bot
-        run: timeout 21000 python bot.py || true
+      - name: 💾 Commit storage
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "VoyagerBot"
+          git pull --rebase origin main || true
+          git add storage/
+          git commit -m "🤖 Bot sync: $(date '+%Y-%m-%d %H:%M:%S')" || echo "✅ No changes"
+          git push origin main
