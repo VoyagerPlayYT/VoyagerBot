@@ -124,7 +124,7 @@ TR: Dict[str, Dict[str, str]] = {
         "sett_appleid":     "\U0001f464 Введи Apple ID (email):",
         "sett_channel":     "\U0001f4e3 Введи ID канала (напр. -100123456789 или @name):",
         "sett_admin":       "\U0001f511 Введи Telegram ID администратора:",
-        "sett_saved":       "\u2705 Сохранено: **{key}** = `{val}`",
+        "sett_saved":       "\u2705 Сохранено: **{label}** = `{val}`",
         "sett_invalid":     "\u274c Неверный формат. Попробуй ещё раз.",
         "lang_prompt":      "\U0001f310 **Выбери язык:**",
         "lang_ru":          "\U0001f1f7\U0001f1fa Язык изменён на **Русский**\n\nКлавиатура обновлена \U0001f447",
@@ -176,7 +176,7 @@ TR: Dict[str, Dict[str, str]] = {
         "sett_appleid":     "\U0001f464 Enter Apple ID (email):",
         "sett_channel":     "\U0001f4e3 Enter channel ID (e.g. -100123456789 or @name):",
         "sett_admin":       "\U0001f511 Enter admin Telegram ID:",
-        "sett_saved":       "\u2705 Saved: **{key}** = `{val}`",
+        "sett_saved":       "\u2705 Saved: **{label}** = `{val}`",
         "sett_invalid":     "\u274c Invalid format. Try again.",
         "lang_prompt":      "\U0001f310 **Choose language:**",
         "lang_ru":          "\U0001f1f7\U0001f1fa Язык изменён на **Русский**\n\nКлавиатура обновлена \U0001f447",
@@ -979,7 +979,7 @@ async def handle_text_input(event):
             bot_settings["appleid"] = text
             save_settings()
             user_state.pop(uid, None)
-            await event.reply(t("sett_saved", lang, key="AppleID", val=text))
+            await event.reply(t("sett_saved", lang, label="AppleID", val=text))
         else:
             await event.reply(t("sett_invalid", lang))
 
@@ -988,7 +988,7 @@ async def handle_text_input(event):
             bot_settings["channel"] = text
             save_settings()
             user_state.pop(uid, None)
-            await event.reply(t("sett_saved", lang, key="Channel", val=text))
+            await event.reply(t("sett_saved", lang, label="Channel", val=text))
         else:
             await event.reply(t("sett_invalid", lang))
 
@@ -997,7 +997,7 @@ async def handle_text_input(event):
             bot_settings["admin"] = text
             save_settings()
             user_state.pop(uid, None)
-            await event.reply(t("sett_saved", lang, key="Admin", val=text))
+            await event.reply(t("sett_saved", lang, label="Admin", val=text))
         else:
             await event.reply(t("sett_invalid", lang))
 
