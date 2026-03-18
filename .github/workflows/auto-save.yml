@@ -1,0 +1,46 @@
+name: 🔄 Auto-Save Files
+
+on:
+  schedule:
+    # Каждые 5 минут
+    - cron: '*/5 * * * *'
+  workflow_dispatch:  # Можно запустить вручную
+
+permissions:
+  contents: write
+
+jobs:
+  auto-save:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: 🐍 Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: 📦 Install dependencies
+        run: |
+          pip install -r requirements.txt
+
+      - name: 💾 Run auto-save
+        env:
+          BOT_DATA_PATH: ${{ secrets.BOT_DATA_PATH }}
+        run: |
+          python scripts/auto_save.py
+
+      - name: 🔗 Commit and push
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "Auto-Save Bot"
+          
+          if [ -n "$(git status --porcelain)" ]; then
+            git add -A
+            git commit -m "🔄 Auto-save: $(date '+%Y-%m-%d %H:%M:%S')"
+            git push
+          else
+            echo "✅ No changes"
+          fi
