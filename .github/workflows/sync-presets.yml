@@ -22,14 +22,20 @@ jobs:
         with:
           python-version: '3.11'
       
+      - name: 📁 Create docs folder
+        run: mkdir -p docs
+      
       - name: 🔄 Sync presets
         run: python .github/workflows/sync_presets.py
+      
+      - name: 📊 Check if docs/presets.json exists
+        run: ls -la docs/
       
       - name: 🔗 Commit and Push
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "Sync-Bot"
           git pull --rebase origin main || true
-          git add docs/presets.json
+          git add docs/presets.json storage/presets/
           git commit -m "🔄 Sync presets: $(date '+%Y-%m-%d %H:%M:%S')" || echo "✅ No changes"
           git push origin main
