@@ -1369,7 +1369,6 @@ async def handle_ipa_url(event):
 # ============================================================
 # АВТОСОХРАНЕНИЕ ПРЕСЕТОВ
 # ============================================================
-
 async def auto_save_presets():
     """Периодически сохраняет пресеты в файлы."""
     while True:
@@ -1377,9 +1376,8 @@ async def auto_save_presets():
             presets_dir = Path("storage/presets")
             presets_dir.mkdir(parents=True, exist_ok=True)
             
-            # ДОБАВЬ ЭТО:
             if not presets:
-                logger.info("💾 No presets to save")
+                logger.info("⏸️ No presets to save yet")
                 await asyncio.sleep(60)
                 continue
             
@@ -1392,13 +1390,11 @@ async def auto_save_presets():
                         "created_at": data.get("created_at", ""),
                     }, f, ensure_ascii=False, indent=2)
             
-            logger.info(f"💾 Saved {len(presets)} presets")
+            logger.info(f"💾 Auto-save: {len(presets)} presets → {presets_dir}")  # ← ИЗМЕНИ!
             await asyncio.sleep(60)
         except Exception as e:
             logger.error(f"Auto-save error: {e}")
-            await asyncio.sleep(60)
-
-
+            await asyncio.sleep(1)
 # ============================================================
 # ЗАПУСК
 # ============================================================
