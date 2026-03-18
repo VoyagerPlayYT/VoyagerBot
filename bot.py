@@ -547,6 +547,24 @@ async def inject_dylib(ipa_path: str, dylib_names: List[str], progress_cb=None) 
         fw = app_dir / "Frameworks"
         fw.mkdir(exist_ok=True, parents=True)
 
+        # Читаем данные из Info.plist
+        app_name    = "App"
+        app_version = "1.0"
+        bundle_id   = ""
+        min_os      = ""
+        plist_path  = app_dir / "Info.plist"
+        if plist_path.exists():
+            try:
+                import plistlib
+                with open(plist_path, "rb") as pf:
+                    plist = plistlib.load(pf)
+                app_name    = plist.get("CFBundleName") or plist.get("CFBundleDisplayName") or app_name
+                app_version = plist.get("CFBundleShortVersionString") or plist.get("CFBundleVersion") or app_version
+                bundle_id   = plist.get("CFBundleIdentifier", "")
+                min_os      = plist.get("MinimumOSVersion", "")
+            except Exception:
+                pass
+
         # Инжектируем все выбранные dylib по очереди
         for i, dn in enumerate(dylib_names, 1):
             if progress_cb:
@@ -557,14 +575,16 @@ async def inject_dylib(ipa_path: str, dylib_names: List[str], progress_cb=None) 
 
         if progress_cb:
             await progress_cb("\U0001f4e6 Перепаковка IPA...")
-        tag  = "_".join(dshort(d) for d in dylib_names)[:40]
-        out  = f"patched_{int(time.time())}_{tag}.ipa"
-        base = out[:-4]
+
+        # Имя файла: AppName_voyagersipa.ipa
+        safe_name = "".join(c if c.isalnum() or c in "-_." else "_" for c in app_name)
+        out       = f"{safe_name}_voyagersipa.ipa"
+        base      = out[:-4]
         shutil.make_archive(base, "zip", ipa_dir)
         if not os.path.exists(base + ".zip"):
             return False, "Ошибка архивации"
         shutil.move(base + ".zip", out)
-        return True, out
+        return True, out, app_name, app_version, bundle_id, min_os
 
     except Exception as e:
         logger.error(f"inject_dylib: {e}", exc_info=True)
@@ -717,12 +737,7 @@ async def cb_dylib_toggle(event):
         await event.answer("\u274c Файл не найден")
         return
 
-    # Дедуплицируем на случай гонки (race condition при быстрых тапах)
-    raw = user_dylib.setdefault(uid, [])
-    seen = set()
-    sel = [x for x in raw if not (x in seen or seen.add(x))]
-    user_dylib[uid] = sel
-
+    sel = user_dylib.setdefault(uid, [])
     if name in sel:
         sel.remove(name)
         await event.answer(f"\u2796 {dshort(name)}")
@@ -1007,36 +1022,108 @@ async def _run_injection(event, uid: int, lang: str, ipa_path: str, ipa_label: s
         except Exception:
             pass
 
-    ok, result = await inject_dylib(ipa_path, sel, progress_cb=patch_hook)
+    ok, *rest = await inject_dylib(ipa_path, sel, progress_cb=patch_hook)
 
     if ok:
+        result      = rest[0]
+        app_name    = rest[1] if len(rest) > 1 else "App"
+        app_version = rest[2] if len(rest) > 2 else "1.0"
+        bundle_id   = rest[3] if len(rest) > 3 else ""
+        min_os      = rest[4] if len(rest) > 4 else ""
         fname = os.path.basename(result)
+
+        # Пытаемся найти ссылку на App Store по bundle_id
+        store_link = ""
+        if bundle_id:
+            store_link = f"https://apps.apple.com/app/id"  # без track_id — просто красиво
+        # Запрашиваем track_id из iTunes если есть bundle_id
+        if bundle_id:
+            try:
+                async with aiohttp.ClientSession() as s:
+                    async with s.get(
+                        "https://itunes.apple.com/lookup",
+                        params={"bundleId": bundle_id, "limit": 1},
+                        timeout=aiohttp.ClientTimeout(total=8)
+                    ) as r:
+                        if r.status == 200:
+                            data = await r.json(content_type=None)
+                            results = data.get("results", [])
+                            if results:
+                                track_id = results[0].get("trackId", "")
+                                developer = results[0].get("artistName", "")
+                                if track_id:
+                                    store_link = f"https://apps.apple.com/app/id{track_id}"
+            except Exception:
+                developer = ""
+        else:
+            developer = ""
+
+        tweak_label = shorts
+
+        if lang == "ru":
+            extra_header = "Дополнительная информация ℹ️"
+        else:
+            extra_header = "Additional Information ℹ️"
+
+        lines = []
+        if store_link:
+            lines.append(f"📱 [{app_name}]({store_link})")
+        else:
+            lines.append(f"📱 **{app_name}**")
+        lines.append(f"💊 Tweak: {tweak_label}")
+        lines.append(f"🔖 Version: {app_version}")
+        if lang == "ru":
+            lines.append("✅ Пропатчено ✓")
+        else:
+            lines.append("✅ Patched ✓")
+        lines.append(f"📣 @voyagersipa")
+        lines.append("")
+        lines.append(f"**{extra_header}**")
+        if min_os:
+            if lang == "ru":
+                lines.append(f"📌 Мин. iOS: {min_os}")
+            else:
+                lines.append(f"📌 Min OS Version: {min_os}")
+        if bundle_id:
+            lines.append(f"🔑 Bundle ID: `{bundle_id}`")
+        if developer:
+            if lang == "ru":
+                lines.append(f"👨‍💻 Разработчик: {developer}")
+            else:
+                lines.append(f"👨‍💻 Developer: {developer}")
+
+        caption = "\n".join(lines)
+
         await status.edit(t("patch_done", lang, filename=fname, dlib=shorts))
-        await client.send_file(
-            event.chat_id, result,
-            caption=f"\U0001f48a {shorts} \u2192 {ipa_label}"
-        )
+        try:
+            await client.send_file(
+                event.chat_id, result,
+                caption=caption,
+                force_document=True,
+                parse_mode="md"
+            )
+        except Exception as e:
+            logger.error(f"Ошибка отправки файла: {e}")
+            await event.reply(t("patch_err", lang, error=f"Ошибка отправки: {e}"))
+            return
         ch = bot_settings.get("channel", os.getenv("CHANNEL_ID", ""))
         if ch and ch != "—":
             try:
-                await client.send_file(
-                    ch, result,
-                    caption=f"\U0001f48a {shorts} \u2192 {ipa_label}"
-                )
+                await client.send_file(ch, result, caption=caption, force_document=True, parse_mode="md")
             except Exception as e:
                 logger.warning(f"Канал отправка: {e}")
         save_hist({"dlib": sel, "ipa": ipa_label,
                    "time": time.strftime("%d.%m %H:%M"), "uid": uid})
         for d in sel:
             record_stats(uid, d)
+        # Удаляем файл ТОЛЬКО после успешной отправки
+        if os.path.exists(result):
+            try:
+                os.remove(result)
+            except OSError:
+                pass
     else:
-        await status.edit(t("patch_err", lang, error=result))
-
-    if ok and os.path.exists(result):
-        try:
-            os.remove(result)
-        except OSError:
-            pass
+        await status.edit(t("patch_err", lang, error=rest[0]))
 
 
 @client.on(events.NewMessage(func=lambda e: e.file is not None))
@@ -1048,9 +1135,7 @@ async def handle_ipa(event):
 
     uid  = event.sender_id
     lang = get_lang(uid)
-    raw  = user_dylib.get(uid, [])
-    seen = set(); sel = [x for x in raw if not (x in seen or seen.add(x))]
-    user_dylib[uid] = sel
+    sel  = user_dylib.get(uid, [])
 
     if not sel:
         await event.reply(t("no_dlib", lang), buttons=dylib_kb(0))
@@ -1105,9 +1190,7 @@ async def handle_ipa_url(event):
     uid  = event.sender_id
     lang = get_lang(uid)
     url  = event.message.text.strip().split()[0]  # берём первый токен (URL)
-    raw  = user_dylib.get(uid, [])
-    seen = set(); sel = [x for x in raw if not (x in seen or seen.add(x))]
-    user_dylib[uid] = sel
+    sel  = user_dylib.get(uid, [])
 
     if not sel:
         await event.reply(t("no_dlib", lang), buttons=dylib_kb(0))
