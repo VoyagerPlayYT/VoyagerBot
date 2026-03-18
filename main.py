@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# Voyager Dylib Bot
+# Автор: @voyagersipa
 """
 Voyager Dylib Bot v3.1
 Функции: reply keyboard, смена языка всего бота, App Store поиск,
