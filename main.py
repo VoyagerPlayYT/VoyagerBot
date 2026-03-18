@@ -1,11 +1,8 @@
 #!/usr/bin/env python3
 """
 Voyager Dylib Bot v3.1
-Новое: СИСТЕМА ПРЕСЕТОВ для быстрого выбора dylib
-- Создание пресетов
-- Загрузка пресетов в один клик
-- Редактирование и удаление пресетов
-- Пресеты появляются вверху списка dylib
+Функции: reply keyboard, смена языка всего бота, App Store поиск,
+инжект dylib в IPA с прогрессом, источники dylib, настройки, история, статистика, ПРЕСЕТЫ
 """
 
 import os, sys, asyncio, zipfile, shutil, logging, json, tempfile, time
@@ -25,9 +22,9 @@ SESSION_NAME    = "voyager_dylib_bot"
 HISTORY_FILE    = "history.json"
 STATS_FILE      = "stats.json"
 SETTINGS_FILE   = "settings.json"
-PRESETS_FILE    = "presets.json"  # ← НОВОЕ
+PRESETS_FILE    = "presets.json"
 MAX_HISTORY     = 100
-DYLIB_PAGE_SIZE = 6  # снизили на 2, чтобы было место для пресетов
+DYLIB_PAGE_SIZE = 6
 VERSION         = "3.1"
 CHANNEL         = "@voyagersipa"
 ITUNES_TIMEOUT  = 15
@@ -83,10 +80,10 @@ user_state:   Dict[int, dict] = {}
 history:      List[dict]      = []
 stats:        dict            = {}
 bot_settings: dict            = {}
-presets:      Dict[str, dict] = {}  # ← НОВОЕ: {preset_id: {"name": str, "dylibs": [str]}}
+presets:      Dict[str, dict] = {}
 
 # ============================================================
-# ПЕРЕВОДЫ (добавлены ключи для пресетов)
+# ПЕРЕВОДЫ
 # ============================================================
 
 TR: Dict[str, Dict[str, str]] = {
@@ -100,10 +97,8 @@ TR: Dict[str, Dict[str, str]] = {
         "btn_settings":     "\u2699\ufe0f Настройки",
         "btn_channel":      "\U0001f4e3 Канал",
         
-        # НОВОЕ: ПРЕСЕТЫ
         "preset_header":    "\U0001f4da **Выбери dylib:**\n\n\U0001f4be **Пресеты:**",
         "preset_empty":     "\U0001f4be (Пресетов нет)",
-        "preset_new":       "\U0001f193 Новый пресет",
         "preset_save":      "\U0001f4be Сохранить как пресет",
         "preset_name_ask":  "\U0001f4be **Введи имя пресета:**",
         "preset_created":   "\u2705 Пресет **{name}** создан!",
@@ -164,10 +159,8 @@ TR: Dict[str, Dict[str, str]] = {
         "btn_settings":     "\u2699\ufe0f Settings",
         "btn_channel":      "\U0001f4e3 Channel",
         
-        # НОВОЕ: ПРЕСЕТЫ
         "preset_header":    "\U0001f4da **Pick dylib:**\n\n\U0001f4be **Presets:**",
         "preset_empty":     "\U0001f4be (No presets)",
-        "preset_new":       "\U0001f193 New preset",
         "preset_save":      "\U0001f4be Save as preset",
         "preset_name_ask":  "\U0001f4be **Enter preset name:**",
         "preset_created":   "\u2705 Preset **{name}** created!",
@@ -260,11 +253,10 @@ def fmt_bytes(n: int) -> str:
 
 
 # ============================================================
-# ПРЕСЕТЫ (НОВОЕ)
+# ПРЕСЕТЫ
 # ============================================================
 
 def load_presets() -> None:
-    """Загружает пресеты из presets.json."""
     global presets
     try:
         presets = json.load(open(PRESETS_FILE, encoding="utf-8"))
@@ -273,16 +265,14 @@ def load_presets() -> None:
 
 
 def save_presets() -> None:
-    """Сохраняет пресеты в presets.json."""
     try:
         json.dump(presets, open(PRESETS_FILE, "w", encoding="utf-8"),
                   ensure_ascii=False, indent=2)
-    except OSError as e:
-        logger.warning(f"Ошибка сохранения пресетов: {e}")
+    except OSError:
+        pass
 
 
 def create_preset(name: str, dylib_list: List[str]) -> bool:
-    """Создаёт новый пресет. Возвращает True если успешно."""
     if name in presets:
         return False
     preset_id = f"preset_{int(time.time())}_{len(presets)}"
@@ -296,7 +286,6 @@ def create_preset(name: str, dylib_list: List[str]) -> bool:
 
 
 def delete_preset(name: str) -> bool:
-    """Удаляет пресет по имени."""
     if name in presets:
         del presets[name]
         save_presets()
@@ -305,21 +294,9 @@ def delete_preset(name: str) -> bool:
 
 
 def get_preset(name: str) -> Optional[List[str]]:
-    """Возвращает список dylib из пресета."""
     if name in presets:
         return presets[name].get("dylibs", [])
     return None
-
-
-def render_preset_list(lang: str) -> str:
-    """Формирует текст списка пресетов."""
-    if not presets:
-        return t("preset_empty", lang)
-    lines = []
-    for i, (name, data) in enumerate(presets.items(), 1):
-        dylib_count = len(data.get("dylibs", []))
-        lines.append(f"  {i}. \U0001f4be **{name}** ({dylib_count} dylib)")
-    return "\n".join(lines)
 
 
 # ============================================================
@@ -345,24 +322,12 @@ def _match_btn(text: str) -> Optional[str]:
 
 
 # ============================================================
-# INLINE KB — DYLIB с ПРЕСЕТАМИ
+# INLINE KB — DYLIB С ПРЕСЕТАМИ
 # ============================================================
 
 def dylib_kb_with_presets(page: int = 0, dlibs: Optional[List[str]] = None,
                           selected: Optional[List[str]] = None,
                           lang: str = "ru") -> List:
-    """
-    Мультиселект dylib с ПРЕСЕТАМИ вверху.
-    Структура:
-    [Пресеты]
-    📌 Пресет 1 | 📌 Пресет 2 | ...
-    [Dylib]
-    ✅ libcrypto | 💊 libssl | ...
-    [Навигация]
-    ◀ | ❓ | ▶
-    [Действия]
-    ✅ Готово | 🗑 Сбросить | 💾 Сохранить как пресет
-    """
     if dlibs is None:
         dlibs = get_dylibs()
     if selected is None:
@@ -370,20 +335,19 @@ def dylib_kb_with_presets(page: int = 0, dlibs: Optional[List[str]] = None,
 
     rows = []
 
-    # ═══ ПРЕСЕТЫ ВВЕРХУ ═══
+    # ПРЕСЕТЫ ВВЕРХУ
     if presets:
-        # Показываем пресеты в виде кнопок
         preset_btns = []
-        for preset_name in list(presets.keys())[:4]:  # Макс 4 в строке
+        for preset_name in list(presets.keys())[:4]:
             short = preset_name[:15]
             preset_btns.append(Button.inline(f"📌 {short}", f"pr_{preset_name}".encode()))
         rows.append(preset_btns)
     else:
         rows.append([Button.inline(t("preset_empty", lang), b"noop")])
 
-    rows.append([])  # Пустая строка-разделитель
+    rows.append([])
 
-    # ═══ DYLIB ═══
+    # DYLIB
     total = max(1, (len(dlibs) + DYLIB_PAGE_SIZE - 1) // DYLIB_PAGE_SIZE)
     page  = max(0, min(page, total - 1))
     start = page * DYLIB_PAGE_SIZE
@@ -397,10 +361,10 @@ def dylib_kb_with_presets(page: int = 0, dlibs: Optional[List[str]] = None,
             f"dl_{name}".encode()
         )])
     
-    if not rows or len(rows) <= 2:  # Если только пресеты и разделитель
+    if not rows or len(rows) <= 2:
         rows.append([Button.inline("\U0001f4ad Нет dylib", b"noop")])
 
-    # ═══ НАВИГАЦИЯ ═══
+    # НАВИГАЦИЯ
     nav = []
     if page > 0:
         nav.append(Button.inline("\u25c0", f"dp_{page-1}".encode()))
@@ -409,7 +373,7 @@ def dylib_kb_with_presets(page: int = 0, dlibs: Optional[List[str]] = None,
         nav.append(Button.inline("\u25b6", f"dp_{page+1}".encode()))
     rows.append(nav)
 
-    # ═══ ДЕЙСТВИЯ ═══
+    # ДЕЙСТВИЯ
     n = len(selected)
     done_label = f"\u2705 Готово ({n})" if n > 0 else "\u2705 Готово"
     rows.append([
@@ -717,7 +681,7 @@ except ValueError:
 client = TelegramClient(SESSION_NAME, API_ID, _api_hash)
 
 # ============================================================
-# КОМАНДЫ (/start, /help, ...)
+# КОМАНДЫ
 # ============================================================
 
 @client.on(events.NewMessage(pattern=r"^/start"))
@@ -838,7 +802,6 @@ async def cb_preset_load(event):
         await event.answer(f"\u274c Пресет '{preset_name}' не найден")
         return
     
-    # Проверяем, что все dylib существуют
     existing_dylibs = get_dylibs()
     valid_dylibs = [d for d in dylib_list if d in existing_dylibs]
     
@@ -846,19 +809,21 @@ async def cb_preset_load(event):
         await event.answer(f"\u26a0\ufe0f В пресете нет доступных dylib")
         return
     
-    # Загружаем пресет
     user_dylib[uid] = valid_dylibs
     await event.answer(t("preset_loaded", lang, name=preset_name, count=len(valid_dylibs)))
     
-    # Обновляем UI
-    d   = get_dylibs()
-    tot = max(1, (len(d) + DYLIB_PAGE_SIZE - 1) // DYLIB_PAGE_SIZE)
-    sel_names = ", ".join(dshort(s) for s in valid_dylibs)
-    header = (
-        t("dylib_header", lang, page=1, total=tot) +
-        f"\n\n\u2705 Выбрано ({len(valid_dylibs)}): {sel_names}"
-    )
-    await event.edit(header, buttons=dylib_kb_with_presets(0, d, valid_dylibs, lang))
+    try:
+        d   = get_dylibs()
+        tot = max(1, (len(d) + DYLIB_PAGE_SIZE - 1) // DYLIB_PAGE_SIZE)
+        sel_names = ", ".join(dshort(s) for s in valid_dylibs)
+        header = (
+            t("dylib_header", lang, page=1, total=tot) +
+            f"\n\n\u2705 Выбрано ({len(valid_dylibs)}): {sel_names}"
+        )
+        await event.edit(header, buttons=dylib_kb_with_presets(0, d, valid_dylibs, lang))
+    except Exception as e:
+        logger.warning(f"Edit message error: {e}")
+        await event.respond(header, buttons=dylib_kb_with_presets(0, d, valid_dylibs, lang))
 
 
 @client.on(events.CallbackQuery(data=b"pr_save_as"))
@@ -1118,7 +1083,6 @@ async def handle_text_input(event):
         await do_appstore_search(event, uid, lang, text)
 
     elif aw == "preset_name":
-        """Сохранить пресет с введённым именем."""
         user_state.pop(uid, None)
         sel = user_dylib.get(uid, [])
         
@@ -1190,6 +1154,7 @@ async def _run_injection(event, uid: int, lang: str, ipa_path: str, ipa_label: s
         fname = os.path.basename(result)
 
         store_link = ""
+        developer = ""
         if bundle_id:
             try:
                 async with aiohttp.ClientSession() as s:
@@ -1207,9 +1172,7 @@ async def _run_injection(event, uid: int, lang: str, ipa_path: str, ipa_label: s
                                 if track_id:
                                     store_link = f"https://apps.apple.com/app/id{track_id}"
             except Exception:
-                developer = ""
-        else:
-            developer = ""
+                pass
 
         tweak_label = shorts
 
@@ -1403,6 +1366,33 @@ async def handle_ipa_url(event):
 
 
 # ============================================================
+# АВТОСОХРАНЕНИЕ ПРЕСЕТОВ
+# ============================================================
+
+async def auto_save_presets():
+    """Периодически сохраняет пресеты в файлы."""
+    while True:
+        try:
+            presets_dir = Path("storage/presets")
+            presets_dir.mkdir(parents=True, exist_ok=True)
+            
+            for name, data in presets.items():
+                preset_file = presets_dir / f"{name}.json"
+                with open(preset_file, "w", encoding="utf-8") as f:
+                    json.dump({
+                        "name": name,
+                        "dylibs": data.get("dylibs", []),
+                        "created_at": data.get("created_at", ""),
+                    }, f, ensure_ascii=False, indent=2)
+            
+            logger.info(f"💾 Saved {len(presets)} presets")
+            await asyncio.sleep(60)
+        except Exception as e:
+            logger.error(f"Auto-save error: {e}")
+            await asyncio.sleep(60)
+
+
+# ============================================================
 # ЗАПУСК
 # ============================================================
 
@@ -1410,11 +1400,11 @@ async def main():
     load_history()
     load_stats()
     load_settings()
-    load_presets()  # ← НОВОЕ
+    load_presets()
 
     dlibs = get_dylibs()
-    logger.info(f"Dylib в папке: {len(dlibs)}")
-    logger.info(f"Пресетов загружено: {len(presets)}")
+    logger.info(f"📁 Dylib в папке: {len(dlibs)}")
+    logger.info(f"📌 Пресетов загружено: {len(presets)}")
 
     await client.start(bot_token=_bot_token)
 
@@ -1432,9 +1422,12 @@ async def main():
                 BotCommand("help",     "\u2753 Помощь"),
             ]
         ))
-        logger.info("Команды зарегистрированы")
+        logger.info("✅ Команды зарегистрированы")
     except Exception as e:
         logger.warning(f"set_bot_commands: {e}")
+
+    # Запускаем автосохранение пресетов
+    client.loop.create_task(auto_save_presets())
 
     logger.info(f"\U0001f680 Voyager Dylib Bot v{VERSION} запущен! {CHANNEL}")
     await client.run_until_disconnected()
