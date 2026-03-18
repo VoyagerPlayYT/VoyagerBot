@@ -28,5 +28,5 @@ jobs:
           git config --local user.name "Sync-Bot"
           git pull --rebase origin main || true
           git add docs/presets.json
-          git commit -m "🔄 Sync presets" || echo "✅ No changes"
+          git commit -m "🔄 Sync presets: $(date '+%Y-%m-%d %H:%M:%S')" || echo "✅ No changes"
           git push origin main
