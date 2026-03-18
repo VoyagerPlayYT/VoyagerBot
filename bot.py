@@ -1067,9 +1067,9 @@ async def _run_injection(event, uid: int, lang: str, ipa_path: str, ipa_label: s
 
         lines = []
         if store_link:
-            lines.append(f"📱 [{app_name}]({store_link})")
+            lines.append(f'📱 <a href="{store_link}">{app_name}</a>')
         else:
-            lines.append(f"📱 **{app_name}**")
+            lines.append(f"📱 <b>{app_name}</b>")
         lines.append(f"💊 Tweak: {tweak_label}")
         lines.append(f"🔖 Version: {app_version}")
         if lang == "ru":
@@ -1078,14 +1078,14 @@ async def _run_injection(event, uid: int, lang: str, ipa_path: str, ipa_label: s
             lines.append("✅ Patched ✓")
         lines.append(f"📣 @voyagersipa")
         lines.append("")
-        lines.append(f"**{extra_header}**")
+        lines.append(f"<b>{extra_header}</b>")
         if min_os:
             if lang == "ru":
                 lines.append(f"📌 Мин. iOS: {min_os}")
             else:
                 lines.append(f"📌 Min OS Version: {min_os}")
         if bundle_id:
-            lines.append(f"🔑 Bundle ID: `{bundle_id}`")
+            lines.append(f"🔑 Bundle ID: <code>{bundle_id}</code>")
         if developer:
             if lang == "ru":
                 lines.append(f"👨‍💻 Разработчик: {developer}")
@@ -1094,13 +1094,18 @@ async def _run_injection(event, uid: int, lang: str, ipa_path: str, ipa_label: s
 
         caption = "\n".join(lines)
 
-        await status.edit(t("patch_done", lang, filename=fname, dlib=shorts))
+        # Удаляем статусное сообщение — весь результат будет в caption файла
+        try:
+            await status.delete()
+        except Exception:
+            pass
+
         try:
             await client.send_file(
                 event.chat_id, result,
                 caption=caption,
                 force_document=True,
-                parse_mode="md"
+                parse_mode="html"
             )
         except Exception as e:
             logger.error(f"Ошибка отправки файла: {e}")
@@ -1109,7 +1114,7 @@ async def _run_injection(event, uid: int, lang: str, ipa_path: str, ipa_label: s
         ch = bot_settings.get("channel", os.getenv("CHANNEL_ID", ""))
         if ch and ch != "—":
             try:
-                await client.send_file(ch, result, caption=caption, force_document=True, parse_mode="md")
+                await client.send_file(ch, result, caption=caption, force_document=True, parse_mode="html")
             except Exception as e:
                 logger.warning(f"Канал отправка: {e}")
         save_hist({"dlib": sel, "ipa": ipa_label,
