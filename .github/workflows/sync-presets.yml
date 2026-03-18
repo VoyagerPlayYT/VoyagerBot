@@ -22,10 +22,11 @@ jobs:
       - name: 🔄 Sync
         run: python .github/workflows/sync_presets.py
       
-      - name: 🔗 Commit
+      - name: 🔗 Commit and Push
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "Sync-Bot"
+          git pull --rebase origin main || true
           git add docs/presets.json
           git commit -m "🔄 Sync presets" || echo "✅ No changes"
-          git push
+          git push origin main
