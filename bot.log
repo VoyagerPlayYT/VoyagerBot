@@ -1,0 +1,58 @@
+2026-03-18 21:39:05,459 [INFO] Найдено dylib: 46
+2026-03-18 21:39:05,459 [INFO] Примеры: ['A7ATouch 2.dylib', 'ADsBlocker.dylib', 'Adblock 1.dylib']
+2026-03-18 21:39:05,461 [INFO] Connecting to 149.154.167.51:443/TcpFull...
+2026-03-18 21:39:06,982 [INFO] Connection to 149.154.167.51:443/TcpFull complete!
+2026-03-18 21:39:07,902 [INFO] 🚀 🛠 Voyager Dylib Bot v2.0 (800 lines) запущен!
+2026-03-18 21:39:07,902 [INFO] Новые функции: /stats, /search
+2026-03-18 21:42:21,930 [INFO] Disconnecting from 149.154.167.51:443/TcpFull...
+2026-03-18 21:42:21,931 [INFO] Disconnection from 149.154.167.51:443/TcpFull complete!
+2026-03-18 21:42:29,975 [INFO] Найдено dylib: 46
+2026-03-18 21:42:29,975 [INFO] Примеры: ['A7ATouch 2.dylib', 'ADsBlocker.dylib', 'Adblock 1.dylib']
+2026-03-18 21:42:29,975 [INFO] Connecting to 149.154.167.51:443/TcpFull...
+2026-03-18 21:42:30,072 [INFO] Connection to 149.154.167.51:443/TcpFull complete!
+2026-03-18 21:42:31,083 [INFO] ✅ Зарегистрировано 6 команд в Telegram
+2026-03-18 21:42:31,083 [INFO] 🚀 🛠 Voyager Dylib Bot v2.0 (800 lines) запущен!
+2026-03-18 21:42:31,084 [INFO] Функции: /stats, /search, /dylibs, /history, /help
+2026-03-18 21:47:47,162 [INFO] Disconnecting from 149.154.167.51:443/TcpFull...
+2026-03-18 21:47:47,162 [INFO] Disconnection from 149.154.167.51:443/TcpFull complete!
+2026-03-18 21:47:56,669 [INFO] Найдено dylib: 46
+2026-03-18 21:47:56,669 [INFO] Примеры: ['A7ATouch 2.dylib', 'ADsBlocker.dylib', 'Adblock 1.dylib']
+2026-03-18 21:47:56,669 [INFO] Connecting to 149.154.167.51:443/TcpFull...
+2026-03-18 21:47:56,768 [INFO] Connection to 149.154.167.51:443/TcpFull complete!
+2026-03-18 21:47:58,028 [INFO] ✅ Зарегистрировано 6 команд в Telegram
+2026-03-18 21:47:58,028 [INFO] 🚀 🛠 Voyager Dylib Bot v2.0 (800 lines) запущен!
+2026-03-18 21:47:58,028 [INFO] Функции: /stats, /search, /dylibs, /history, /help
+2026-03-18 21:48:12,359 [INFO] Юзер 115408334 выбрал dylib: A7ATouch 2.dylib
+2026-03-18 21:58:16,948 [INFO] Starting direct file download in chunks of 131072 at 0, stride 131072
+2026-03-18 22:00:11,302 [INFO] Disconnecting from 149.154.167.51:443/TcpFull...
+2026-03-18 22:00:11,303 [INFO] Disconnection from 149.154.167.51:443/TcpFull complete!
+2026-03-18 22:00:13,375 [INFO] Dylib в папке: 46
+2026-03-18 22:00:13,377 [INFO] Connecting to 149.154.167.51:443/TcpFull...
+2026-03-18 22:00:15,389 [INFO] Connection to 149.154.167.51:443/TcpFull complete!
+2026-03-18 22:00:16,852 [INFO] Команды зарегистрированы
+2026-03-18 22:00:16,853 [INFO] 🚀 Voyager Dylib Bot v3.0 запущен! @voyagersipa
+2026-03-18 22:04:29,280 [INFO] Dylib в папке: 46
+2026-03-18 22:04:29,280 [INFO] Connecting to 149.154.167.51:443/TcpFull...
+2026-03-18 22:04:29,382 [INFO] Connection to 149.154.167.51:443/TcpFull complete!
+2026-03-18 22:04:30,424 [INFO] Команды зарегистрированы
+2026-03-18 22:04:30,424 [INFO] 🚀 Voyager Dylib Bot v3.0 запущен! @voyagersipa
+2026-03-18 22:04:34,472 [INFO] Disconnecting from 149.154.167.51:443/TcpFull...
+2026-03-18 22:04:34,473 [INFO] Disconnection from 149.154.167.51:443/TcpFull complete!
+2026-03-18 22:06:04,086 [INFO] uid=115408334 сменил язык: ru -> en
+2026-03-18 22:06:07,600 [INFO] uid=115408334 сменил язык: en -> ru
+2026-03-18 22:20:34,903 [INFO] Disconnecting from 149.154.167.51:443/TcpFull...
+2026-03-18 22:20:34,913 [INFO] Disconnection from 149.154.167.51:443/TcpFull complete!
+2026-03-18 22:20:36,669 [INFO] Dylib в папке: 46
+2026-03-18 22:20:36,670 [INFO] Connecting to 149.154.167.51:443/TcpFull...
+2026-03-18 22:20:36,771 [INFO] Connection to 149.154.167.51:443/TcpFull complete!
+2026-03-18 22:20:37,559 [INFO] Команды зарегистрированы
+2026-03-18 22:20:37,559 [INFO] 🚀 Voyager Dylib Bot v3.0 запущен! @voyagersipa
+2026-03-18 22:22:31,430 [INFO] Starting direct file download in chunks of 131072 at 0, stride 131072
+2026-03-18 22:22:31,558 [INFO] File lives in another DC
+2026-03-18 22:22:31,692 [INFO] Connecting to 91.108.56.169:443/TcpFull...
+2026-03-18 22:22:34,129 [INFO] Connection to 91.108.56.169:443/TcpFull complete!
+2026-03-18 22:22:34,129 [INFO] Exporting auth for new borrowed sender in DcOption(id=5, ip_address='91.108.56.169', port=443, ipv6=False, media_only=False, tcpo_only=False, cdn=False, static=False, this_port_only=False, secret=None)
+2026-03-18 22:25:00,926 [INFO] Disconnecting from 149.154.167.51:443/TcpFull...
+2026-03-18 22:25:00,927 [INFO] Disconnection from 149.154.167.51:443/TcpFull complete!
+2026-03-18 22:25:00,927 [INFO] Disconnecting from 91.108.56.169:443/TcpFull...
+2026-03-18 22:25:00,927 [INFO] Disconnection from 91.108.56.169:443/TcpFull complete!
