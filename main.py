@@ -1376,6 +1376,12 @@ async def auto_save_presets():
             presets_dir = Path("storage/presets")
             presets_dir.mkdir(parents=True, exist_ok=True)
             
+            # ДОБАВЬ ЭТО:
+            if not presets:
+                logger.info("💾 No presets to save")
+                await asyncio.sleep(60)
+                continue
+            
             for name, data in presets.items():
                 preset_file = presets_dir / f"{name}.json"
                 with open(preset_file, "w", encoding="utf-8") as f:
