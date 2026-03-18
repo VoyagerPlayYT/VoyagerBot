@@ -1,0 +1,39 @@
+name: 🔄 Sync Presets
+
+on:
+  push:
+    paths:
+      - 'storage/presets/**'
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: 🐍 Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: 📦 Install dependencies
+        run: |
+          pip install -r requirements.txt
+
+      - name: 🔄 Sync presets to docs
+        run: |
+          python scripts/sync_presets.py
+
+      - name: 🔗 Commit and push
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "Sync Bot"
+          
+          if [ -n "$(git status --porcelain)" ]; then
+            git add docs/presets.json
+            git commit -m "🔄 Sync presets: $(date '+%Y-%m-%d %H:%M:%S')"
+            git push
+          fi
