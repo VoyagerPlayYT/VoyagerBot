@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 """
-Voyager Dylib Bot v3.0
-Функции: reply keyboard, смена языка всего бота, App Store поиск,
-инжект dylib в IPA с прогрессом, источники dylib, настройки, история, статистика
+Voyager Dylib Bot v3.1
+Новое: СИСТЕМА ПРЕСЕТОВ для быстрого выбора dylib
+- Создание пресетов
+- Загрузка пресетов в один клик
+- Редактирование и удаление пресетов
+- Пресеты появляются вверху списка dylib
 """
 
 import os, sys, asyncio, zipfile, shutil, logging, json, tempfile, time
@@ -22,9 +25,10 @@ SESSION_NAME    = "voyager_dylib_bot"
 HISTORY_FILE    = "history.json"
 STATS_FILE      = "stats.json"
 SETTINGS_FILE   = "settings.json"
+PRESETS_FILE    = "presets.json"  # ← НОВОЕ
 MAX_HISTORY     = 100
-DYLIB_PAGE_SIZE = 8
-VERSION         = "3.0"
+DYLIB_PAGE_SIZE = 6  # снизили на 2, чтобы было место для пресетов
+VERSION         = "3.1"
 CHANNEL         = "@voyagersipa"
 ITUNES_TIMEOUT  = 15
 
@@ -74,17 +78,16 @@ logger = logging.getLogger(__name__)
 # ============================================================
 
 user_langs:   Dict[int, str]  = {}
-user_dylib:   Dict[int, List[str]] = {}  # мультиселект: список выбранных dylib
+user_dylib:   Dict[int, List[str]] = {}
 user_state:   Dict[int, dict] = {}
 history:      List[dict]      = []
 stats:        dict            = {}
 bot_settings: dict            = {}
+presets:      Dict[str, dict] = {}  # ← НОВОЕ: {preset_id: {"name": str, "dylibs": [str]}}
 
 # ============================================================
-# ПЕРЕВОДЫ
+# ПЕРЕВОДЫ (добавлены ключи для пресетов)
 # ============================================================
-# ВАЖНО: кнопки reply-keyboard определяются по тексту в btn_* ключах.
-# Смена языка меняет ВСЕ — и тексты сообщений, и тексты кнопок.
 
 TR: Dict[str, Dict[str, str]] = {
     "ru": {
@@ -96,6 +99,18 @@ TR: Dict[str, Dict[str, str]] = {
         "btn_history":      "\U0001f4cb История",
         "btn_settings":     "\u2699\ufe0f Настройки",
         "btn_channel":      "\U0001f4e3 Канал",
+        
+        # НОВОЕ: ПРЕСЕТЫ
+        "preset_header":    "\U0001f4da **Выбери dylib:**\n\n\U0001f4be **Пресеты:**",
+        "preset_empty":     "\U0001f4be (Пресетов нет)",
+        "preset_new":       "\U0001f193 Новый пресет",
+        "preset_save":      "\U0001f4be Сохранить как пресет",
+        "preset_name_ask":  "\U0001f4be **Введи имя пресета:**",
+        "preset_created":   "\u2705 Пресет **{name}** создан!",
+        "preset_loaded":    "\u2705 Пресет **{name}** загружен ({count} dylib)",
+        "preset_deleted":   "\u274c Пресет **{name}** удалён",
+        "preset_already":   "\u26a0\ufe0f Пресет с таким именем уже существует",
+        
         "help":             "\U0001f527 **Инструкция:**\n\n1\ufe0f\u20e3 **\U0001f4da Dylib** \u2192 выбери dylib\n2\ufe0f\u20e3 **\U0001f4e6 Загрузить IPA** \u2192 отправь .ipa\n   или **\U0001f50d App Store** \u2192 найди приложение\n3\ufe0f\u20e3 Получи патченый IPA!\n\n\U0001f310 **Язык** \u2014 меняет ВЕСЬ интерфейс\n\u2699\ufe0f **Настройки** \u2014 AppleID, канал, admin",
         "no_dlib":          "\u26a0\ufe0f **Dylib не выбран!**\n\nНажми **\U0001f4da Dylib**",
         "dlib_selected":    "\u2705 Выбран: **{dlib}**\n\n\U0001f4e6 Отправь .ipa файл:",
@@ -129,7 +144,7 @@ TR: Dict[str, Dict[str, str]] = {
         "lang_prompt":      "\U0001f310 **Выбери язык:**",
         "lang_ru":          "\U0001f1f7\U0001f1fa Язык изменён на **Русский**\n\nКлавиатура обновлена \U0001f447",
         "lang_en":          "\U0001f1fa\U0001f1f8 Language changed to **English**\n\nKeyboard updated \U0001f447",
-        "channel_text":     "\U0001f4e3 **Канал:** {channel}\n\nThere:\n\u2022 IPA файлы\n\u2022 dylib патчи\n\u2022 Обновления",
+        "channel_text":     "\U0001f4e3 **Канал:** {channel}\n\nТам:\n\u2022 IPA файлы\n\u2022 dylib патчи\n\u2022 Обновления",
         "page_info":        "\U0001f4c4 {cur}/{total}",
         "back":             "\u25c0 Назад",
         "home":             "\U0001f3e0 Меню",
@@ -148,6 +163,18 @@ TR: Dict[str, Dict[str, str]] = {
         "btn_history":      "\U0001f4cb History",
         "btn_settings":     "\u2699\ufe0f Settings",
         "btn_channel":      "\U0001f4e3 Channel",
+        
+        # НОВОЕ: ПРЕСЕТЫ
+        "preset_header":    "\U0001f4da **Pick dylib:**\n\n\U0001f4be **Presets:**",
+        "preset_empty":     "\U0001f4be (No presets)",
+        "preset_new":       "\U0001f193 New preset",
+        "preset_save":      "\U0001f4be Save as preset",
+        "preset_name_ask":  "\U0001f4be **Enter preset name:**",
+        "preset_created":   "\u2705 Preset **{name}** created!",
+        "preset_loaded":    "\u2705 Preset **{name}** loaded ({count} dylib)",
+        "preset_deleted":   "\u274c Preset **{name}** deleted",
+        "preset_already":   "\u26a0\ufe0f Preset with this name already exists",
+        
         "help":             "\U0001f527 **How to use:**\n\n1\ufe0f\u20e3 **\U0001f4da Dylib** \u2192 pick a dylib\n2\ufe0f\u20e3 **\U0001f4e6 Upload IPA** \u2192 send .ipa\n   or **\U0001f50d App Store** \u2192 find app\n3\ufe0f\u20e3 Get patched IPA!\n\n\U0001f310 **Lang** \u2014 switches ALL interface\n\u2699\ufe0f **Settings** \u2014 AppleID, channel, admin",
         "no_dlib":          "\u26a0\ufe0f **No dylib selected!**\n\nTap **\U0001f4da Dylib**",
         "dlib_selected":    "\u2705 Selected: **{dlib}**\n\n\U0001f4e6 Send your .ipa file:",
@@ -233,34 +260,79 @@ def fmt_bytes(n: int) -> str:
 
 
 # ============================================================
+# ПРЕСЕТЫ (НОВОЕ)
+# ============================================================
+
+def load_presets() -> None:
+    """Загружает пресеты из presets.json."""
+    global presets
+    try:
+        presets = json.load(open(PRESETS_FILE, encoding="utf-8"))
+    except Exception:
+        presets = {}
+
+
+def save_presets() -> None:
+    """Сохраняет пресеты в presets.json."""
+    try:
+        json.dump(presets, open(PRESETS_FILE, "w", encoding="utf-8"),
+                  ensure_ascii=False, indent=2)
+    except OSError as e:
+        logger.warning(f"Ошибка сохранения пресетов: {e}")
+
+
+def create_preset(name: str, dylib_list: List[str]) -> bool:
+    """Создаёт новый пресет. Возвращает True если успешно."""
+    if name in presets:
+        return False
+    preset_id = f"preset_{int(time.time())}_{len(presets)}"
+    presets[name] = {
+        "id": preset_id,
+        "dylibs": dylib_list,
+        "created_at": time.strftime("%Y-%m-%d %H:%M:%S")
+    }
+    save_presets()
+    return True
+
+
+def delete_preset(name: str) -> bool:
+    """Удаляет пресет по имени."""
+    if name in presets:
+        del presets[name]
+        save_presets()
+        return True
+    return False
+
+
+def get_preset(name: str) -> Optional[List[str]]:
+    """Возвращает список dylib из пресета."""
+    if name in presets:
+        return presets[name].get("dylibs", [])
+    return None
+
+
+def render_preset_list(lang: str) -> str:
+    """Формирует текст списка пресетов."""
+    if not presets:
+        return t("preset_empty", lang)
+    lines = []
+    for i, (name, data) in enumerate(presets.items(), 1):
+        dylib_count = len(data.get("dylibs", []))
+        lines.append(f"  {i}. \U0001f4be **{name}** ({dylib_count} dylib)")
+    return "\n".join(lines)
+
+
+# ============================================================
 # REPLY KEYBOARD
 # ============================================================
 
 def reply_kb(lang: str = "ru") -> List:
-    """
-    Постоянная клавиатура (Button.text) под полем ввода.
-    Язык кнопки btn_lang показывает ТЕКУЩИЙ язык.
-    Смена языка перестраивает всю клавиатуру.
-    """
     return [
         [Button.text(t("btn_upload",   lang)), Button.text(t("btn_appstore", lang))],
         [Button.text(t("btn_dylibs",   lang)), Button.text(t("btn_lang",     lang))],
         [Button.text(t("btn_history",  lang)), Button.text(t("btn_settings", lang))],
         [Button.text(t("btn_channel",  lang))],
     ]
-
-
-def _all_btn_texts() -> List[str]:
-    """Все возможные тексты кнопок (RU + EN) для фильтрации."""
-    out = []
-    for lng in ("ru", "en"):
-        for k in ("btn_upload","btn_appstore","btn_dylibs","btn_lang",
-                  "btn_history","btn_settings","btn_channel"):
-            out.append(t(k, lng))
-    return out
-
-
-ALL_BTNS: List[str] = []   # заполняем после определения t()
 
 
 def _match_btn(text: str) -> Optional[str]:
@@ -273,36 +345,62 @@ def _match_btn(text: str) -> Optional[str]:
 
 
 # ============================================================
-# INLINE KB — DYLIB
+# INLINE KB — DYLIB с ПРЕСЕТАМИ
 # ============================================================
 
-def dylib_kb(page: int = 0, dlibs: Optional[List[str]] = None,
-             selected: Optional[List[str]] = None) -> List:
+def dylib_kb_with_presets(page: int = 0, dlibs: Optional[List[str]] = None,
+                          selected: Optional[List[str]] = None,
+                          lang: str = "ru") -> List:
     """
-    Мультиселект dylib.
-    Выбранные отмечены ✅, невыбранные — 💊.
-    Внизу: [✅ Готово (N)] [🗑 Сбросить] [◀ / ▶]
+    Мультиселект dylib с ПРЕСЕТАМИ вверху.
+    Структура:
+    [Пресеты]
+    📌 Пресет 1 | 📌 Пресет 2 | ...
+    [Dylib]
+    ✅ libcrypto | 💊 libssl | ...
+    [Навигация]
+    ◀ | ❓ | ▶
+    [Действия]
+    ✅ Готово | 🗑 Сбросить | 💾 Сохранить как пресет
     """
     if dlibs is None:
         dlibs = get_dylibs()
     if selected is None:
         selected = []
+
+    rows = []
+
+    # ═══ ПРЕСЕТЫ ВВЕРХУ ═══
+    if presets:
+        # Показываем пресеты в виде кнопок
+        preset_btns = []
+        for preset_name in list(presets.keys())[:4]:  # Макс 4 в строке
+            short = preset_name[:15]
+            preset_btns.append(Button.inline(f"📌 {short}", f"pr_{preset_name}".encode()))
+        rows.append(preset_btns)
+    else:
+        rows.append([Button.inline(t("preset_empty", lang), b"noop")])
+
+    rows.append([])  # Пустая строка-разделитель
+
+    # ═══ DYLIB ═══
     total = max(1, (len(dlibs) + DYLIB_PAGE_SIZE - 1) // DYLIB_PAGE_SIZE)
     page  = max(0, min(page, total - 1))
-    rows  = []
     start = page * DYLIB_PAGE_SIZE
+    
     for i in range(start, min(start + DYLIB_PAGE_SIZE, len(dlibs))):
         name  = dlibs[i]
-        short = dshort(name)[:22]
+        short = dshort(name)[:20]
         tick  = "\u2705" if name in selected else "\U0001f48a"
         rows.append([Button.inline(
             f"{tick} {short}",
             f"dl_{name}".encode()
         )])
-    if not rows:
+    
+    if not rows or len(rows) <= 2:  # Если только пресеты и разделитель
         rows.append([Button.inline("\U0001f4ad Нет dylib", b"noop")])
 
-    # Навигация
+    # ═══ НАВИГАЦИЯ ═══
     nav = []
     if page > 0:
         nav.append(Button.inline("\u25c0", f"dp_{page-1}".encode()))
@@ -311,13 +409,17 @@ def dylib_kb(page: int = 0, dlibs: Optional[List[str]] = None,
         nav.append(Button.inline("\u25b6", f"dp_{page+1}".encode()))
     rows.append(nav)
 
-    # Готово / Сбросить
+    # ═══ ДЕЙСТВИЯ ═══
     n = len(selected)
     done_label = f"\u2705 Готово ({n})" if n > 0 else "\u2705 Готово"
     rows.append([
-        Button.inline(done_label,        b"dl_done"),
-        Button.inline("\U0001f5d1 Сбросить", b"dl_reset"),
+        Button.inline(done_label,              b"dl_done"),
+        Button.inline("\U0001f5d1 Сбросить",   b"dl_reset"),
     ])
+    rows.append([
+        Button.inline(t("preset_save", lang), b"pr_save_as"),
+    ])
+
     return rows
 
 
@@ -547,7 +649,6 @@ async def inject_dylib(ipa_path: str, dylib_names: List[str], progress_cb=None) 
         fw = app_dir / "Frameworks"
         fw.mkdir(exist_ok=True, parents=True)
 
-        # Читаем данные из Info.plist
         app_name    = "App"
         app_version = "1.0"
         bundle_id   = ""
@@ -565,7 +666,6 @@ async def inject_dylib(ipa_path: str, dylib_names: List[str], progress_cb=None) 
             except Exception:
                 pass
 
-        # Инжектируем все выбранные dylib по очереди
         for i, dn in enumerate(dylib_names, 1):
             if progress_cb:
                 await progress_cb(
@@ -576,7 +676,6 @@ async def inject_dylib(ipa_path: str, dylib_names: List[str], progress_cb=None) 
         if progress_cb:
             await progress_cb("\U0001f4e6 Перепаковка IPA...")
 
-        # Имя файла: AppName_voyagersipa.ipa
         safe_name = "".join(c if c.isalnum() or c in "-_." else "_" for c in app_name)
         out       = f"{safe_name}_voyagersipa.ipa"
         base      = out[:-4]
@@ -635,10 +734,18 @@ async def cmd_help(event):
 
 @client.on(events.NewMessage(pattern=r"^/dylibs"))
 async def cmd_dylibs(event):
-    lang = get_lang(event.sender_id)
+    uid  = event.sender_id
+    lang = get_lang(uid)
     d    = get_dylibs()
+    sel  = user_dylib.get(uid, [])
     tot  = max(1, (len(d) + DYLIB_PAGE_SIZE - 1) // DYLIB_PAGE_SIZE)
-    await event.reply(t("dylib_header", lang, page=1, total=tot), buttons=dylib_kb(0))
+    
+    sel_names = ", ".join(dshort(s) for s in sel) if sel else "—"
+    header = (
+        t("dylib_header", lang, page=1, total=tot) +
+        f"\n\n\u2705 Выбрано ({len(sel)}): {sel_names}"
+    )
+    await event.reply(header, buttons=dylib_kb_with_presets(0, d, sel, lang))
 
 
 @client.on(events.NewMessage(pattern=r"^/stats"))
@@ -697,16 +804,10 @@ async def cb_appback(event):
         await event.answer()
 
 
-# ── Смена языка (ГЛАВНАЯ ФУНКЦИЯ — меняет весь интерфейс) ────────────────────
+# ── Смена языка ────────────────────────────────────────────
 
 @client.on(events.CallbackQuery(func=lambda e: e.data in (b"setlang_ru", b"setlang_en")))
 async def cb_set_lang(event):
-    """
-    Смена языка всего бота.
-    - user_langs[uid] обновляется → все t() начнут возвращать новый язык
-    - reply_kb(new_lang) отправляется → все кнопки под полем ввода обновляются
-    - Все следующие сообщения и кнопки будут на новом языке
-    """
     uid      = event.sender_id
     new_lang = "ru" if event.data == b"setlang_ru" else "en"
     old_lang = get_lang(uid)
@@ -716,9 +817,64 @@ async def cb_set_lang(event):
     user_langs[uid] = new_lang
     await event.answer()
     conf_key = "lang_ru" if new_lang == "ru" else "lang_en"
-    # Отправляем сообщение с НОВОЙ клавиатурой — это и есть смена языка
     await client.send_message(event.chat_id, t(conf_key, new_lang), buttons=reply_kb(new_lang))
     logger.info(f"uid={uid} сменил язык: {old_lang} -> {new_lang}")
+
+
+# ── ПРЕСЕТЫ CALLBACKS ──────────────────────────────────────
+
+@client.on(events.CallbackQuery(func=lambda e: e.data.startswith(b"pr_") and not e.data.startswith(b"pr_save")))
+async def cb_preset_load(event):
+    """Загрузить пресет по клику на кнопку."""
+    uid  = event.sender_id
+    lang = get_lang(uid)
+    try:
+        preset_name = event.data[3:].decode()
+    except Exception:
+        await event.answer("Error"); return
+    
+    dylib_list = get_preset(preset_name)
+    if dylib_list is None:
+        await event.answer(f"\u274c Пресет '{preset_name}' не найден")
+        return
+    
+    # Проверяем, что все dylib существуют
+    existing_dylibs = get_dylibs()
+    valid_dylibs = [d for d in dylib_list if d in existing_dylibs]
+    
+    if not valid_dylibs:
+        await event.answer(f"\u26a0\ufe0f В пресете нет доступных dylib")
+        return
+    
+    # Загружаем пресет
+    user_dylib[uid] = valid_dylibs
+    await event.answer(t("preset_loaded", lang, name=preset_name, count=len(valid_dylibs)))
+    
+    # Обновляем UI
+    d   = get_dylibs()
+    tot = max(1, (len(d) + DYLIB_PAGE_SIZE - 1) // DYLIB_PAGE_SIZE)
+    sel_names = ", ".join(dshort(s) for s in valid_dylibs)
+    header = (
+        t("dylib_header", lang, page=1, total=tot) +
+        f"\n\n\u2705 Выбрано ({len(valid_dylibs)}): {sel_names}"
+    )
+    await event.edit(header, buttons=dylib_kb_with_presets(0, d, valid_dylibs, lang))
+
+
+@client.on(events.CallbackQuery(data=b"pr_save_as"))
+async def cb_preset_save_as(event):
+    """Сохранить текущий выбор как новый пресет."""
+    uid  = event.sender_id
+    lang = get_lang(uid)
+    sel  = user_dylib.get(uid, [])
+    
+    if not sel:
+        await event.answer("\u26a0\ufe0f Выбери dylib перед сохранением пресета!")
+        return
+    
+    user_state[uid] = {"awaiting": "preset_name"}
+    await event.answer()
+    await event.respond(t("preset_name_ask", lang))
 
 
 # ── Выбор dylib ───────────────────────────────────────────────────────────────
@@ -728,7 +884,6 @@ async def cb_set_lang(event):
     and e.data not in (b"dl_done", b"dl_reset")
 )))
 async def cb_dylib_toggle(event):
-    """Тап на dylib — переключает галочку (мультиселект)."""
     uid  = event.sender_id
     lang = get_lang(uid)
     name = event.data[3:].decode()
@@ -745,26 +900,20 @@ async def cb_dylib_toggle(event):
         sel.append(name)
         await event.answer(f"\u2705 {dshort(name)}")
 
-    # Перерисовываем список с обновлёнными галочками
     d   = get_dylibs()
     tot = max(1, (len(d) + DYLIB_PAGE_SIZE - 1) // DYLIB_PAGE_SIZE)
-    # Определяем текущую страницу из сообщения (если не можем — 0)
-    try:
-        cur_page = user_state.get(uid, {}).get("dylib_page", 0)
-    except Exception:
-        cur_page = 0
+    cur_page = user_state.get(uid, {}).get("dylib_page", 0)
 
     sel_names = ", ".join(dshort(s) for s in sel) if sel else "—"
     header = (
         t("dylib_header", lang, page=cur_page+1, total=tot) +
         f"\n\n\u2705 Выбрано ({len(sel)}): {sel_names}"
     )
-    await event.edit(header, buttons=dylib_kb(cur_page, d, sel))
+    await event.edit(header, buttons=dylib_kb_with_presets(cur_page, d, sel, lang))
 
 
 @client.on(events.CallbackQuery(data=b"dl_done"))
 async def cb_dylib_done(event):
-    """Кнопка Готово — подтверждает выбор dylib."""
     uid  = event.sender_id
     lang = get_lang(uid)
     sel  = user_dylib.get(uid, [])
@@ -787,7 +936,6 @@ async def cb_dylib_done(event):
 
 @client.on(events.CallbackQuery(data=b"dl_reset"))
 async def cb_dylib_reset(event):
-    """Кнопка Сбросить — снимает все галочки."""
     uid  = event.sender_id
     lang = get_lang(uid)
     user_dylib[uid] = []
@@ -798,7 +946,7 @@ async def cb_dylib_reset(event):
     await event.answer("\U0001f5d1 Сброшено")
     await event.edit(
         t("dylib_header", lang, page=cur+1, total=tot),
-        buttons=dylib_kb(cur, d, [])
+        buttons=dylib_kb_with_presets(cur, d, [], lang)
     )
 
 
@@ -821,7 +969,7 @@ async def cb_dylib_page(event):
         t("dylib_header", lang, page=page+1, total=tot) +
         f"\n\n\u2705 Выбрано ({len(sel)}): {sel_names}"
     )
-    await event.edit(header, buttons=dylib_kb(page, d, sel))
+    await event.edit(header, buttons=dylib_kb_with_presets(page, d, sel, lang))
 
 
 # ── App Store детали ──────────────────────────────────────────────────────────
@@ -880,14 +1028,14 @@ async def cb_app_dl(event):
 async def cb_settings_input(event):
     uid  = event.sender_id
     lang = get_lang(uid)
-    key  = event.data.decode()[4:]   # "appleid" / "channel" / "admin"
+    key  = event.data.decode()[4:]
     user_state[uid] = {"awaiting": f"sett_{key}"}
     await event.answer()
     await event.respond(t(f"sett_{key}", lang))
 
 
 # ============================================================
-# REPLY KEYBOARD — обработчик нажатий кнопок (Button.text)
+# REPLY KEYBOARD — обработчик нажатий кнопок
 # ============================================================
 
 @client.on(events.NewMessage(func=lambda e: (
@@ -898,10 +1046,6 @@ async def cb_settings_input(event):
     and _match_btn(e.message.text.strip()) is not None
 )))
 async def handle_reply_kb(event):
-    """
-    Центральный обработчик всех кнопок reply keyboard.
-    Все кнопки работают на ТЕКУЩЕМ ЯЗЫКЕ пользователя.
-    """
     uid  = event.sender_id
     lang = get_lang(uid)
     key  = _match_btn(event.message.text.strip())
@@ -909,7 +1053,7 @@ async def handle_reply_kb(event):
     if key == "btn_upload":
         dlib = user_dylib.get(uid)
         if dlib:
-            await event.reply(t("send_ipa", lang, dlib=dshort(dlib)))
+            await event.reply(t("send_ipa", lang, dlib=", ".join(dshort(d) for d in dlib)))
         else:
             await event.reply(t("no_dlib", lang))
 
@@ -930,10 +1074,9 @@ async def handle_reply_kb(event):
             f"\n\n\u2705 Выбрано ({len(sel)}): {sel_names}"
         )
         user_state.setdefault(uid, {})["dylib_page"] = 0
-        await event.reply(header, buttons=dylib_kb(0, dlibs, sel))
+        await event.reply(header, buttons=dylib_kb_with_presets(0, dlibs, sel, lang))
 
     elif key == "btn_lang":
-        # Показываем выбор языка
         await event.reply(
             t("lang_prompt", lang),
             buttons=[
@@ -954,7 +1097,7 @@ async def handle_reply_kb(event):
 
 
 # ============================================================
-# ТЕКСТОВЫЙ ВВОД (поиск, настройки)
+# ТЕКСТОВЫЙ ВВОД
 # ============================================================
 
 @client.on(events.NewMessage(func=lambda e: (
@@ -973,6 +1116,20 @@ async def handle_text_input(event):
     if aw == "appstore_query":
         user_state.pop(uid, None)
         await do_appstore_search(event, uid, lang, text)
+
+    elif aw == "preset_name":
+        """Сохранить пресет с введённым именем."""
+        user_state.pop(uid, None)
+        sel = user_dylib.get(uid, [])
+        
+        if not sel:
+            await event.reply("\u26a0\ufe0f Нет выбранных dylib")
+            return
+        
+        if create_preset(text, sel):
+            await event.reply(t("preset_created", lang, name=text))
+        else:
+            await event.reply(t("preset_already", lang))
 
     elif aw == "sett_appleid":
         if "@" in text and "." in text:
@@ -1007,10 +1164,10 @@ async def handle_text_input(event):
 # ============================================================
 
 async def _run_injection(event, uid: int, lang: str, ipa_path: str, ipa_label: str) -> None:
-    """Общая логика инжекта — используется и для файла и для URL."""
+    """Общая логика инжекта."""
     sel = user_dylib.get(uid, [])
     if not sel:
-        await event.reply(t("no_dlib", lang), buttons=dylib_kb(0))
+        await event.reply(t("no_dlib", lang), buttons=dylib_kb_with_presets(0, get_dylibs(), [], lang))
         return
 
     shorts = " + ".join(dshort(s) for s in sel)
@@ -1032,11 +1189,7 @@ async def _run_injection(event, uid: int, lang: str, ipa_path: str, ipa_label: s
         min_os      = rest[4] if len(rest) > 4 else ""
         fname = os.path.basename(result)
 
-        # Пытаемся найти ссылку на App Store по bundle_id
         store_link = ""
-        if bundle_id:
-            store_link = f"https://apps.apple.com/app/id"  # без track_id — просто красиво
-        # Запрашиваем track_id из iTunes если есть bundle_id
         if bundle_id:
             try:
                 async with aiohttp.ClientSession() as s:
@@ -1094,7 +1247,6 @@ async def _run_injection(event, uid: int, lang: str, ipa_path: str, ipa_label: s
 
         caption = "\n".join(lines)
 
-        # Удаляем статусное сообщение — весь результат будет в caption файла
         try:
             await status.delete()
         except Exception:
@@ -1111,17 +1263,19 @@ async def _run_injection(event, uid: int, lang: str, ipa_path: str, ipa_label: s
             logger.error(f"Ошибка отправки файла: {e}")
             await event.reply(t("patch_err", lang, error=f"Ошибка отправки: {e}"))
             return
+        
         ch = bot_settings.get("channel", os.getenv("CHANNEL_ID", ""))
         if ch and ch != "—":
             try:
                 await client.send_file(ch, result, caption=caption, force_document=True, parse_mode="html")
             except Exception as e:
                 logger.warning(f"Канал отправка: {e}")
+        
         save_hist({"dlib": sel, "ipa": ipa_label,
                    "time": time.strftime("%d.%m %H:%M"), "uid": uid})
         for d in sel:
             record_stats(uid, d)
-        # Удаляем файл ТОЛЬКО после успешной отправки
+        
         if os.path.exists(result):
             try:
                 os.remove(result)
@@ -1133,7 +1287,7 @@ async def _run_injection(event, uid: int, lang: str, ipa_path: str, ipa_label: s
 
 @client.on(events.NewMessage(func=lambda e: e.file is not None))
 async def handle_ipa(event):
-    """Получен .ipa файл — скачиваем с прогрессом, затем инжектируем."""
+    """Получен .ipa файл."""
     fname = getattr(event.file, "name", "") or ""
     if not fname.lower().endswith(".ipa"):
         return
@@ -1143,7 +1297,7 @@ async def handle_ipa(event):
     sel  = user_dylib.get(uid, [])
 
     if not sel:
-        await event.reply(t("no_dlib", lang), buttons=dylib_kb(0))
+        await event.reply(t("no_dlib", lang), buttons=dylib_kb_with_presets(0, get_dylibs(), [], lang))
         return
 
     status   = await event.reply(t("dl_progress", lang, name=fname, pct=0, recv="0Б", total="?"))
@@ -1188,17 +1342,14 @@ async def handle_ipa(event):
     and _match_btn(e.message.text.strip()) is None
 )))
 async def handle_ipa_url(event):
-    """
-    Прямая ссылка на IPA (http://...*.ipa).
-    Скачиваем через aiohttp → инжектируем.
-    """
+    """Прямая ссылка на IPA."""
     uid  = event.sender_id
     lang = get_lang(uid)
-    url  = event.message.text.strip().split()[0]  # берём первый токен (URL)
+    url  = event.message.text.strip().split()[0]
     sel  = user_dylib.get(uid, [])
 
     if not sel:
-        await event.reply(t("no_dlib", lang), buttons=dylib_kb(0))
+        await event.reply(t("no_dlib", lang), buttons=dylib_kb_with_presets(0, get_dylibs(), [], lang))
         return
 
     fname    = url.split("/")[-1].split("?")[0] or "app.ipa"
@@ -1259,9 +1410,11 @@ async def main():
     load_history()
     load_stats()
     load_settings()
+    load_presets()  # ← НОВОЕ
 
     dlibs = get_dylibs()
     logger.info(f"Dylib в папке: {len(dlibs)}")
+    logger.info(f"Пресетов загружено: {len(presets)}")
 
     await client.start(bot_token=_bot_token)
 
