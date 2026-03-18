@@ -12,14 +12,17 @@ permissions:
 jobs:
   sync:
     runs-on: ubuntu-latest
+    
     steps:
-      - uses: actions/checkout@v4
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
       
-      - uses: actions/setup-python@v4
+      - name: 🐍 Setup Python
+        uses: actions/setup-python@v4
         with:
           python-version: '3.11'
       
-      - name: 🔄 Sync
+      - name: 🔄 Sync presets
         run: python .github/workflows/sync_presets.py
       
       - name: 🔗 Commit and Push
