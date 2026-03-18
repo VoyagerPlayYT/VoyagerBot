@@ -1269,7 +1269,7 @@ async def handle_ipa(event):
 
     async def dl_hook(recv: int, total: int) -> None:
         now = time.time()
-        if now - last_upd[0] < 1.5:
+        if now - last_upd[0] < 0.001:
             return
         last_upd[0] = now
         pct = int(recv / total * 100) if total else 0
