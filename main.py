@@ -1503,6 +1503,7 @@ async def cb_extract_all(event):
     lang = get_lang(uid)
     st   = user_state.get(uid, {})
     found = st.get("extract_dylibs", [])
+    user_state.setdefault(uid, {})["extract_dylibs"] = found 
     user_state[uid]["extract_selected"] = list(found)
     await event.answer("✅ Все выбраны")
     await event.edit(
