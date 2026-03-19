@@ -25,9 +25,9 @@ HISTORY_FILE    = "history.json"
 STATS_FILE      = "stats.json"
 SETTINGS_FILE   = "settings.json"
 PRESETS_FILE    = "presets.json"
-MAX_HISTORY     = 100
-DYLIB_PAGE_SIZE = 6
-VERSION         = "3.1"
+MAX_HISTORY     = 100000
+DYLIB_PAGE_SIZE = 3
+VERSION         = "3.4"
 CHANNEL         = "@voyagersipa"
 ITUNES_TIMEOUT  = 15
 
